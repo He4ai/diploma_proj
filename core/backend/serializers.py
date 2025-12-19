@@ -61,12 +61,28 @@ class ProductParameterSerializer(serializers.ModelSerializer):
 class UserSerializer(serializers.ModelSerializer):
     email = serializers.EmailField(
         validators=[UniqueValidator(queryset=User.objects.all(), message="Такой email уже зарегистрирован.")]
-    ) # Проверка уникальности почты
+    )
     password = serializers.CharField(write_only=True)
+    shop = serializers.PrimaryKeyRelatedField(
+        queryset=Shop.objects.all(),
+        required=False,
+        allow_null=True
+    )
 
     class Meta:
         model = User
-        fields = ("id", "email", "password", "first_name", "last_name", "type")
+        fields = ("id", "email", "password", "first_name", "last_name", "type", "shop")
+
+    def validate(self, attrs):
+        user_type = attrs.get("type", getattr(self.instance, "type", None))
+        shop = attrs.get("shop", getattr(self.instance, "shop", None))
+
+        # Проверка: если пользователь покупатель - нельзя привязать магазин; если продавец - нужно привязать магазин.
+        if user_type == "buyer" and shop is not None:
+            raise serializers.ValidationError({"shop": "Покупателю нельзя назначать магазин."})
+        if user_type == "shop" and shop is None:
+            raise serializers.ValidationError({"shop": "Для продавца нужно указать магазин."})
+        return attrs
 
     def create(self, validated_data):
         password = validated_data.pop("password")
@@ -89,26 +105,28 @@ class AddressSerializer(serializers.ModelSerializer):
     @transaction.atomic
     def create(self, validated_data):
         user = self.context["request"].user
+        make_default = validated_data.get("is_default", False)
 
-        # Если у пользователя это первый и единственный адрес - автоматически делать его дефолтным
+        # если первый адрес - делаем его дефолтным
         if not Address.objects.filter(user=user).exists() and "is_default" not in validated_data:
+            make_default = True
             validated_data["is_default"] = True
 
+        # если новый адрес должен стать дефолтным - сбрасываем старый
+        if make_default:
+            Address.objects.filter(user=user, is_default=True).update(is_default=False)
+
         address = Address.objects.create(user=user, **validated_data)
-
-        # Убираем дефолтность с прошлого адреса на случай, если человек сделал дефотным новый адрес
-        if address.is_default:
-            self._unset_other_defaults(user, address.id)
-
         return address
 
     @transaction.atomic
     def update(self, instance, validated_data):
         user = self.context["request"].user
-        instance = super().update(instance, validated_data)
-        if instance.is_default:
-            self._unset_other_defaults(user, instance.id)
-        return instance
+
+        if validated_data.get("is_default") is True:
+            Address.objects.filter(user=user, is_default=True).exclude(id=instance.id).update(is_default=False)
+
+        return super().update(instance, validated_data)
 
 
 class OrderItemSerializer(serializers.ModelSerializer):

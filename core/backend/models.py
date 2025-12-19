@@ -45,6 +45,7 @@ class User(AbstractUser):
     REQUIRED_FIELDS = []
     objects = UserManager()
     USERNAME_FIELD = 'email'
+
     email = models.EmailField(unique=True, verbose_name='Email')
     username_validator = UnicodeUsernameValidator()
     username = models.CharField(
@@ -54,12 +55,17 @@ class User(AbstractUser):
         error_messages={
             'unique': "A user with that username already exists.",
         },
-        unique=True,
         blank=True,
         verbose_name='Имя пользователя'
     )
     type = models.CharField(choices=USER_TYPE_CHOICES, max_length=5, default='buyer', verbose_name='Тип пользователя')
-
+    shop = models.ForeignKey(
+        "Shop",
+        null=True, blank=True,
+        on_delete=models.SET_NULL,
+        related_name="employees",
+        verbose_name="Магазин"
+    )
     def __str__(self):
         full = f'{self.first_name} {self.last_name}'.strip()
         return full or self.email
