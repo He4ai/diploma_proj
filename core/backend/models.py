@@ -45,16 +45,12 @@ class User(AbstractUser):
     REQUIRED_FIELDS = []
     objects = UserManager()
     USERNAME_FIELD = 'email'
-
     email = models.EmailField(unique=True, verbose_name='Email')
     username_validator = UnicodeUsernameValidator()
     username = models.CharField(
         max_length=150,
         help_text='Необязательно. До 150 символов. Буквы, цифры и @/./+/-/_',
         validators=[username_validator],
-        error_messages={
-            'unique': "A user with that username already exists.",
-        },
         blank=True,
         verbose_name='Имя пользователя'
     )

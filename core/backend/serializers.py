@@ -8,6 +8,7 @@ from .models import (
     Parameter, ProductParameter,
     Order, OrderItem, Address
 )
+from django.contrib.auth import authenticate
 
 User = get_user_model()
 
@@ -190,3 +191,23 @@ class BasketSerializer(serializers.ModelSerializer):
         user = self.context["request"].user
         basket, _ = Order.objects.get_or_create(user=user, status=Order.Status.BASKET)
         return basket
+
+class LogInSerializer(serializers.ModelSerializer):
+    email = serializers.EmailField()
+    password = serializers.CharField(write_only=True, trim_whitespace=False)
+
+    def validate(self, attrs):
+        email = attrs.get("email")
+        password = attrs.get("password")
+
+        user = authenticate(
+            request=self.context.get("request"),
+            username=email,
+            password=password,
+        )
+        
+        if not user:
+            raise serializers.ValidationError("Wrong email or password.")
+
+        attrs["user"] = user
+        return attrs
