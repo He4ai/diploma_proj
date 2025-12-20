@@ -1,7 +1,14 @@
 # Дипломная работа
 
-На этом этапе реализованы модели проекта: User, Shop, Category, Product, ProductInfo, Parameter, ProductParameter,
+На этом этапе реализовано: 
+- Модели проекта: User, Shop, Category, Product, ProductInfo, Parameter, ProductParameter,
 Order, OrderItem, Address
+- Аутентификация:
+  - Регистрация с письмом активации
+  - Активация аккаунта по ссылке
+  - Login (возвращает DRF token + создаёт сессию)
+  - Logout (закрывает сессию и/или удаляет токен)
+
 
 ## Стек
 - Python 3.11
@@ -15,7 +22,7 @@ Order, OrderItem, Address
 Проект находится в папке `core/`:
 - `core/manage.py` — точка входа Django
 - `core/config/` — настройки проекта (settings/urls/asgi/wsgi)
-- `core/orders/` — приложение (пока без логики)
+- `core/backend/` — приложение
 - `core/docker-compose.yml` — PostgreSQL
 - `core/.env` — переменные окружения (НЕ коммитится)
 
@@ -75,7 +82,34 @@ python manage.py makemigrations
 python manage.py migrate
 ```
 
+## API endpoints
+
+POST /auth/register/  
+Регистрация пользователя (email, password). После регистрации отправляется письмо
+с ссылкой для активации аккаунта.
+
+GET /auth/activate/<uid>/<token>  
+Активация аккаунта по ссылке из письма.
+
+POST /auth/login/  
+Логин пользователя. Возвращает DRF token, также создаёт сессию для DRF UI.
+
+POST /auth/logout/  
+Логаут пользователя. Требует авторизацию.
+
+
+## Тестирование
+
+- Открыть /auth/register/ -> отправить JSON (обязательно: email, password)
+- В консоли появится письмо с ссылкой -> перейти, чтобы активировать аккаунт
+- Залогиниться /auth/login/ -> получить токен и открыть сессию
 
 ## Примечания
-- На данном этапе реализована модель данных проекта
-- Бизнес-логика, API, тесты и необходимые правки будут добавляться на следующих этапах
+
+- Реализован гибридный режим аутентификации:
+  - для браузерного тестирования через DRF Browsable API используется сессия;
+  - для внешних клиентов используется TokenAuthentication
+- Такой подход выбран для удобства разработки и тестирования
+- Для отправки писем в dev-окружении используется console backend
+  (письма выводятся в консоль)
+- Для тестирования TokenAuthentication рекомендуется использовать Postman или curl
