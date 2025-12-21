@@ -87,6 +87,14 @@ AUTH_PASSWORD_VALIDATORS = [
     {"NAME": "django.contrib.auth.password_validation.NumericPasswordValidator"},
 ]
 
+REST_FRAMEWORK = {
+    "DEFAULT_AUTHENTICATION_CLASSES": [
+        "rest_framework.authentication.SessionAuthentication",
+        "rest_framework.authentication.TokenAuthentication",
+    ]
+}
+
+
 
 AUTH_USER_MODEL = 'backend.User'
 EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"

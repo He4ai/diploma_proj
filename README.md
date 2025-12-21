@@ -1,13 +1,18 @@
 # Дипломная работа
 
-На этом этапе реализовано: 
+На данный момент реализовано: 
 - Модели проекта: User, Shop, Category, Product, ProductInfo, Parameter, ProductParameter,
-Order, OrderItem, Address
+Order, OrderItem, Address, ShopOrder
 - Аутентификация:
   - Регистрация с письмом активации
   - Активация аккаунта по ссылке
   - Login (возвращает DRF token + создаёт сессию)
   - Logout (закрывает сессию и/или удаляет токен)
+- Бизнес-логика магазина:
+  - Импорт каталога товаров через yaml-файл
+  - Смена статуса активности магазина
+  - Получение информации о заказах
+  - Смена статуса заказа
 
 
 ## Стек
@@ -97,6 +102,20 @@ POST /auth/login/
 POST /auth/logout/  
 Логаут пользователя. Требует авторизацию.
 
+POST shop/owner/import/
+Импорт yaml-файла с каталогом магазина
+
+POST shop/owner/change_shop_status/
+Смена статуса принятия заказов магазина
+
+GET shop/owner/orders/
+Получение всех заказов магазина
+
+GET shop/owner/orders/<int:order_id>/
+Получение информации о конкретном заказе магазина
+
+POST shop/owner/orders/<int:order_id>/change_status/
+Смена статуса конкретного заказа магазина
 
 ## Тестирование
 

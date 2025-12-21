@@ -1,6 +1,5 @@
 from rest_framework import serializers
 from django.contrib.auth import get_user_model
-from django.db import transaction
 from rest_framework.validators import UniqueValidator
 from backend.models import (
     Shop, Category, Product, ProductInfo,
@@ -43,7 +42,7 @@ class RegisterSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = User
-        fields = ("first_name", "last_name", "email", "password", "username")
+        fields = ("first_name", "last_name", "email", "password", "username", "type")
 
     def validate_password(self, value):
         validate_password(value)
