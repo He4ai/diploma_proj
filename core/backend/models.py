@@ -78,7 +78,7 @@ class User(AbstractUser):
 
 class Shop(models.Model):
     name = models.CharField(max_length=200, verbose_name="Название магазина")
-    url = models.URLField(verbose_name="Ссылка на магазин")
+    url = models.URLField(verbose_name="Ссылка на магазин", blank=True, null=True)
 
     user = models.OneToOneField(
         settings.AUTH_USER_MODEL,
