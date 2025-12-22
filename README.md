@@ -90,57 +90,59 @@ python manage.py migrate
 
 ## API endpoints
 
-POST /auth/register/  
+#### POST /auth/register/  
 Регистрация пользователя. После регистрации отправляется письмо с ссылкой для активации аккаунта.
     Ожидаемые данные: email, password.
     Необязательные данные: nickname, first_name, last_name, type.
 
-GET /auth/activate/<uid>/<token>  
+#### GET /auth/activate/<uid>/<token>  
 Активация аккаунта по ссылке из письма.
 
-POST /auth/login/  
+#### POST /auth/login/ 
+
 Логин пользователя. Возвращает DRF token, также создаёт сессию для DRF UI.
+
     Ожидаемые данные: email, password
 
-POST /auth/logout/  
+#### POST /auth/logout/ 
 Логаут пользователя. Требует авторизацию.
 
-GET /shop/me/
+#### GET /shop/me/
 Получение информации о своем магазине
 
-PATCH /shop/me/
-Изменение информации о магазине
+#### PATCH /shop/me/ 
+Изменение информации о магазине 
     Необязательные данные: name (название магазина), url (ссылка на сайт магазина), 
     state (статус активности, bool), add_categories (list["str", "str"], добавляемые категории), 
     remove_categories (list["str", "str"], удаляемые категории)
 
-POST /shop/me/import/
+#### POST /shop/me/import/
 Импорт данных из yaml-файла
     Ожидаемые данные: url (ссылка на yaml-файл)
     Пример yaml-файла представлен в example.yaml
 
-GET /shop/me/orders/
+#### GET /shop/me/orders/
 Получение списка заказов магазина
 
-GET /shop/me/orders/<int:order_id>/
+#### GET /shop/me/orders/<int:order_id>/
 Получение информации по конкретному заказу
 
-PATCH /shop/me/orders/<int:order_id>/status/
+#### PATCH /shop/me/orders/<int:order_id>/status/
 Смена статуса заказа
     Ожидаемые данные: status (возможные значения: processing, confirmed, assembled, sent, delivered, canceled)
 
-POST /shop/me/products/
+#### POST /shop/me/products/
 Создание нового товара для текущего магазина
     Ожидаемые данные: name (str, только на случай, если в Product нет продукта с таким model), category (int, только на случай, если в Product нет продукта с таким model)
     model (str, slug), external_id (int, ссылка на внешнюю бд), quantity (int, количество товара),
     price (decimal, цена), price_rrc (decimal, РРЦ-цена), parameters(dict{"parameter":"value"})
 
-PATCH /shop/me/products/<int:pk>/
+#### PATCH /shop/me/products/<int:pk>/
 Изменение конкретного оффера
     Необязательные данные: quantity (int), price (decimal), price_rrc (decimal), parameters(dict{"parameter":"value"}),
     remove_parameters (dict{"parameter":"value"})
 
-DELETE /shop/me/products/<int:pk>/
+#### DELETE /shop/me/products/<int:pk>/
 Удаление конкретного оффера
 
 
