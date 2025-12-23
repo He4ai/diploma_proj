@@ -1,11 +1,6 @@
 from rest_framework import serializers
 from django.contrib.auth import get_user_model
 from rest_framework.validators import UniqueValidator
-from backend.models import (
-    Shop, Category, Product, ProductInfo,
-    Parameter, ProductParameter,
-    Order, OrderItem, Address
-)
 from django.contrib.auth import authenticate
 from django.contrib.auth.password_validation import validate_password
 from django.core.mail import send_mail
@@ -30,6 +25,9 @@ class UserLoginSerializer(serializers.Serializer):
 
         if not user:
             raise serializers.ValidationError("Wrong email or password.")
+
+        if not user.is_active:
+            raise serializers.ValidationError("Account is not activated.")
 
         attrs["user"] = user
         return attrs
@@ -69,3 +67,17 @@ class RegisterSerializer(serializers.ModelSerializer):
         )
 
         return user
+
+class PasswordResetRequestSerializer(serializers.Serializer):
+    email = serializers.EmailField()
+
+    def validate_email(self, value):
+        return value.strip().lower()
+
+
+class PasswordResetConfirmSerializer(serializers.Serializer):
+    new_password = serializers.CharField(write_only=True, trim_whitespace=False)
+
+    def validate_new_password(self, value):
+        validate_password(value)
+        return value

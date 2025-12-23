@@ -117,6 +117,7 @@ class Product(models.Model):
     name = models.CharField(max_length=200, verbose_name="Название продукта")
     category = models.ForeignKey(Category, on_delete=models.CASCADE, related_name="products", verbose_name="Категория")
     model = models.CharField(max_length=80, unique=True, verbose_name="Модель")
+    description = models.TextField(blank=True, default="", verbose_name="Описание")
 
     def __str__(self) -> str:
         return self.name

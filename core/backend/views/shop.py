@@ -19,7 +19,8 @@ from backend.serializers.shop import (
     ChangeShopInfoSerializer,
     ShopOrderSerializer,
     ChangeShopOrderStatusSerializer, ShopFullSerializer,
-    ProductInfoCreateSerializer, ProductInfoUpdateSerializer
+    ProductInfoCreateSerializer, ProductInfoUpdateSerializer,
+    ProductInfoReadSerializer
 )
 
 
@@ -225,6 +226,28 @@ class ChangeShopInfoAPIView(APIView):
 
 class ProductInfoAPIView(APIView):
     permission_classes = [IsAuthenticated]
+
+    def get(self, request, pk=None, *args, **kwargs):
+        check_rights(request)
+        shop = get_shop(request)
+
+        qs = (
+            ProductInfo.objects
+            .filter(shop=shop)
+            .select_related("product", "product__category")
+            .prefetch_related("parameters__parameter")
+            .order_by("-id")
+        )
+
+        # деталка
+        if pk is not None:
+            obj = qs.filter(id=pk).first()
+            if not obj:
+                return Response({"detail": "ProductInfo not found"}, status=status.HTTP_404_NOT_FOUND)
+            return Response(ProductInfoReadSerializer(obj).data, status=status.HTTP_200_OK)
+
+        # список
+        return Response(ProductInfoReadSerializer(qs, many=True).data, status=status.HTTP_200_OK)
 
     # Создание нового ProductInfo (и, возможно, Product)
     # Ожидаем данные:

@@ -62,7 +62,6 @@ class ChangeShopOrderStatusSerializer(serializers.Serializer):
         ShopOrder.Status.ASSEMBLED,
         ShopOrder.Status.SENT,
         ShopOrder.Status.DELIVERED,
-        ShopOrder.Status.CANCELED,
     ]
 
     FORBIDDEN_TARGETS = {ShopOrder.Status.BASKET}
@@ -87,6 +86,10 @@ class ChangeShopOrderStatusSerializer(serializers.Serializer):
 
         if current_status not in flow or new_status not in flow:
             raise serializers.ValidationError("Некорректный статус для перехода.")
+
+        if new_status == ShopOrder.Status.CANCELED:
+            # отменять можно из любого статуса, кроме basket и финальных
+            return new_status
 
         cur_i = flow.index(current_status)
         new_i = flow.index(new_status)
@@ -314,7 +317,7 @@ class ProductInfoCreateSerializer(serializers.ModelSerializer):
 
 class ProductInfoUpdateSerializer(serializers.ModelSerializer):
     quantity = serializers.IntegerField(required=False, min_value=0)
-    price = serializers.DecimalField(max_digits=10, decimal_places=2, required=True)
+    price = serializers.DecimalField(max_digits=10, decimal_places=2, required=False)
     price_rrc = serializers.DecimalField(max_digits=10, decimal_places=2, required=False)
 
     # установить параметры
@@ -416,3 +419,36 @@ class ProductInfoUpdateSerializer(serializers.ModelSerializer):
                     )
 
         return instance
+
+class ProductParameterReadSerializer(serializers.ModelSerializer):
+    name = serializers.CharField(source="parameter.name", read_only=True)
+
+    class Meta:
+        model = ProductParameter
+        fields = ("name", "value")
+
+
+class ProductInfoReadSerializer(serializers.ModelSerializer):
+    product_id = serializers.IntegerField(source="product.id", read_only=True)
+    product_name = serializers.CharField(source="product.name", read_only=True)
+    product_model = serializers.CharField(source="product.model", read_only=True)
+    category_id = serializers.IntegerField(source="product.category.id", read_only=True)
+    category_name = serializers.CharField(source="product.category.name", read_only=True)
+
+    parameters = ProductParameterReadSerializer(many=True, read_only=True)
+
+    class Meta:
+        model = ProductInfo
+        fields = (
+            "id",
+            "external_id",
+            "quantity",
+            "price",
+            "price_rrc",
+            "product_id",
+            "product_name",
+            "product_model",
+            "category_id",
+            "category_name",
+            "parameters",
+        )

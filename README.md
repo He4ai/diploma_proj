@@ -1,31 +1,117 @@
-# Дипломная работа
+# Дипломная работа  
+**Backend сервиса заказа товаров для розничных сетей (REST API)**
 
-На данный момент реализовано: 
-- Модели проекта: User, Shop, Category, Product, ProductInfo, Parameter, ProductParameter,
-Order, OrderItem, Address, ShopOrder
-- Аутентификация:
-  - Регистрация с письмом активации
-  - Активация аккаунта по ссылке
-  - Login (возвращает DRF token + создаёт сессию)
-  - Logout (закрывает сессию и/или удаляет токен)
-- Бизнес-логика магазина:
-  - Импорт каталога товаров через yaml-файл
-  - Управление профилем магазина (изменение данных, в т.ч. статуса активности)
-  - Получение информации о заказах
-  - Смена статуса заказа
-  - Управление продуктами конкретного магазина (удаление/изменение/добавление)
+## Общее описание
 
+Проект представляет собой backend-часть сервиса для автоматизации закупок в розничной сети через REST API.  
+Все взаимодействие с системой осуществляется **исключительно через API**. Реализация frontend-части не требуется.
 
-## Стек
+Сервис поддерживает два типа пользователей:
+- **Покупатель (buyer)** — формирует корзину, оформляет заказы, управляет адресами доставки
+- **Поставщик (shop)** — импортирует каталог товаров, управляет магазином и обрабатывает заказы
+
+Проект реализован в соответствии с техническим заданием и покрыт автоматическими тестами.
+
+---
+
+## Реализованный функционал
+
+### Модели данных
+
+Реализованы следующие модели:
+- `User` — пользователь (buyer / shop)
+- `Shop` — магазин поставщика
+- `Category` — категории товаров
+- `Product` — товар-эталон
+- `ProductInfo` — оффер товара конкретного магазина
+- `Parameter`, `ProductParameter` — характеристики товаров
+- `Order` — заказ / корзина
+- `ShopOrder` — подзаказ конкретного магазина
+- `OrderItem` — позиция в заказе
+- `Address` — адрес доставки пользователя
+
+---
+
+### Аутентификация и безопасность
+
+- Регистрация пользователя
+- Отправка письма с ссылкой активации
+- Активация аккаунта
+- Login (возвращает DRF Token и создаёт сессию)
+- Logout
+- Смена пароля
+- Смена email с подтверждением по ссылке
+
+Используется гибридная аутентификация:
+- `SessionAuthentication` — для DRF Browsable API
+- `TokenAuthentication` — для внешних клиентов
+
+---
+
+### Функционал покупателя
+
+- Просмотр каталога товаров
+- Поиск и фильтрация
+- Корзина:
+  - добавление товаров
+  - удаление товаров
+  - автоматическое разбиение заказа по магазинам
+- Управление адресами доставки:
+  - создание / редактирование / удаление
+  - строгая логика одного адреса по умолчанию
+- Оформление заказа:
+  - списание остатков
+  - смена статусов
+  - email-подтверждение покупателю
+  - email-накладная администратору
+- Просмотр истории заказов
+- Детальный просмотр заказа
+
+---
+
+### Функционал поставщика
+
+- Импорт каталога товаров из YAML-файла по URL
+- Управление магазином:
+  - название
+  - URL
+  - статус активности
+  - категории
+- Управление товарами:
+  - создание офферов
+  - изменение цен, остатков и характеристик
+  - удаление офферов
+- Просмотр заказов магазина
+- Смена статусов подзаказов с контролем допустимых переходов
+
+---
+
+### Email-уведомления
+
+- Покупателю — подтверждение заказа
+- Поставщику — накладная по подзаказу
+- Администратору — накладная по всему заказу
+
+В dev-окружении используется console email backend.
+
+---
+
+## Стек технологий
+
 - Python 3.11
 - Django 5.2.9
+- Django REST Framework
 - PostgreSQL
-- psycopg 3
+- psycopg3
+- django-filters
 - python-dotenv
 - Docker / Docker Compose
 
-## Структура
-Проект находится в папке `core/`:
+---
+
+## Структура проекта
+
+Проект расположен в папке `core/`:
 - `core/manage.py` — точка входа Django
 - `core/config/` — настройки проекта (settings/urls/asgi/wsgi)
 - `core/backend/` — приложение
@@ -88,76 +174,96 @@ python manage.py makemigrations
 python manage.py migrate
 ```
 
+## Тестирование проекта
+Проект покрыт автоматическими тестами, проверяющими ключевой функционал ТЗ.
+```bash
+python manage.py test backend -v 2
+```
+
 ## API endpoints
 
-#### POST /auth/register/  
-Регистрация пользователя. После регистрации отправляется письмо с ссылкой для активации аккаунта.
-    Ожидаемые данные: email, password.
-    Необязательные данные: nickname, first_name, last_name, type.
+### Аутентификация
 
-#### GET /auth/activate/<uid>/<token>  
-Активация аккаунта по ссылке из письма.
+POST /api/auth/register/
 
-#### POST /auth/login/ 
+GET /api/auth/activate/<uid>/<token>/
 
-Логин пользователя. Возвращает DRF token, также создаёт сессию для DRF UI.
+POST /api/auth/login/
 
-    Ожидаемые данные: email, password
+POST /api/auth/logout/
 
-#### POST /auth/logout/ 
-Логаут пользователя. Требует авторизацию.
+POST /api/auth/password/reset/
 
-#### GET /shop/me/
-Получение информации о своем магазине
+POST /api/auth/password/reset/confirm/<uid>/<token>/
 
-#### PATCH /shop/me/ 
-Изменение информации о магазине 
-    Необязательные данные: name (название магазина), url (ссылка на сайт магазина), 
-    state (статус активности, bool), add_categories (list["str", "str"], добавляемые категории), 
-    remove_categories (list["str", "str"], удаляемые категории)
+### Каталог (публичный)
 
-#### POST /shop/me/import/
-Импорт данных из yaml-файла
-    Ожидаемые данные: url (ссылка на yaml-файл)
-    Пример yaml-файла представлен в example.yaml
+GET /api/catalog/
 
-#### GET /shop/me/orders/
-Получение списка заказов магазина
+GET /api/products/
 
-#### GET /shop/me/orders/<int:order_id>/
-Получение информации по конкретному заказу
+GET /api/shops/<shop_id>/
 
-#### PATCH /shop/me/orders/<int:order_id>/status/
-Смена статуса заказа
-    Ожидаемые данные: status (возможные значения: processing, confirmed, assembled, sent, delivered, canceled)
+GET /api/shops/<shop_id>/offers/
 
-#### POST /shop/me/products/
-Создание нового товара для текущего магазина
-    Ожидаемые данные: name (str, только на случай, если в Product нет продукта с таким model), category (int, только на случай, если в Product нет продукта с таким model)
-    model (str, slug), external_id (int, ссылка на внешнюю бд), quantity (int, количество товара),
-    price (decimal, цена), price_rrc (decimal, РРЦ-цена), parameters(dict{"parameter":"value"})
+### Покупатель
 
-#### PATCH /shop/me/products/<int:pk>/
-Изменение конкретного оффера
-    Необязательные данные: quantity (int), price (decimal), price_rrc (decimal), parameters(dict{"parameter":"value"}),
-    remove_parameters (dict{"parameter":"value"})
+GET /api/buyer/basket/
 
-#### DELETE /shop/me/products/<int:pk>/
-Удаление конкретного оффера
+POST /api/buyer/basket/items/
 
+POST /api/buyer/basket/items/remove/
 
-## Тестирование
+POST /api/buyer/basket/checkout/
 
-- Открыть /auth/register/ -> отправить JSON (обязательно: email, password)
-- В консоли появится письмо с ссылкой -> перейти, чтобы активировать аккаунт
-- Залогиниться /auth/login/ -> получить токен и открыть сессию
+POST /api/buyer/basket/address/
+
+### Профиль клиента
+
+GET /api/client/profile/
+
+PATCH /api/client/profile/
+
+POST /api/client/profile/password/
+
+POST /api/client/profile/email/change/
+
+GET /api/client/profile/addresses/
+
+POST /api/client/profile/addresses/
+
+PATCH /api/client/profile/addresses/<id>/
+
+DELETE /api/client/profile/addresses/<id>/
+
+GET /api/client/orders/
+
+GET /api/client/orders/<id>/
+
+### Поставщик
+
+GET /api/shop/me/
+
+PATCH /api/shop/me/
+
+POST /api/shop/me/import/
+
+GET /api/shop/me/orders/
+
+PATCH /api/shop/me/orders/<order_id>/status/
+
+GET /api/shop/me/products/
+
+POST /api/shop/me/products/
+
+PATCH /api/shop/me/products/<id>/
+
+DELETE /api/shop/me/products/<id>/
 
 ## Примечания
 
-- Реализован гибридный режим аутентификации:
-  - для браузерного тестирования через DRF Browsable API используется сессия;
-  - для внешних клиентов используется TokenAuthentication
-- Такой подход выбран для удобства разработки и тестирования
-- Для отправки писем в dev-окружении используется console backend
-  (письма выводятся в консоль)
-- Для тестирования TokenAuthentication рекомендуется использовать Postman или curl
+- Проект реализует бизнес-логику строго через REST API
+- Frontend не требуется
+- Архитектура позволяет легко расширять функционал
+- Код структурирован и покрыт тестами
+
