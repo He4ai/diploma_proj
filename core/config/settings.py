@@ -38,6 +38,7 @@ INSTALLED_APPS = [
     "rest_framework.authtoken",
     'backend',
     "django_filters",
+    "drf_spectacular",
 ]
 
 MIDDLEWARE = [
@@ -91,7 +92,8 @@ REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": [
         "rest_framework.authentication.SessionAuthentication",
         "rest_framework.authentication.TokenAuthentication",
-    ]
+    ],
+    "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
 }
 
 ADMINS = [
@@ -133,4 +135,11 @@ CELERY_ACCEPT_CONTENT = ["json"]
 CELERY_TASK_SERIALIZER = "json"
 CELERY_RESULT_SERIALIZER = "json"
 CELERY_TIMEZONE = TIME_ZONE
+
+SPECTACULAR_SETTINGS = {
+    "TITLE": "Diploma Project API",
+    "DESCRIPTION": "Backend API для сервиса заказа товаров",
+    "VERSION": "1.0.0",
+    "SERVE_INCLUDE_SCHEMA": False,
+}
 

@@ -11,6 +11,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework import status
 from django.db import transaction
+from drf_spectacular.utils import extend_schema, OpenApiResponse
 
 from backend.models import Address, Order
 
@@ -50,9 +51,27 @@ def _ensure_single_default_address(user):
 class ClientProfileAPIView(APIView):
     permission_classes = [IsAuthenticated]
 
+    @extend_schema(
+        summary="Получить профиль текущего пользователя",
+        description="Возвращает публичные поля профиля авторизованного пользователя.",
+        responses={
+            200: ClientProfileSerializer,
+            401: OpenApiResponse(description="Не авторизован"),
+        },
+    )
     def get(self, request):
         return Response(ClientProfileSerializer(request.user).data)
 
+    @extend_schema(
+        summary="Обновить профиль текущего пользователя",
+        description="Частичное обновление профиля (username/first_name/last_name).",
+        request=ClientProfileUpdateSerializer,
+        responses={
+            200: ClientProfileSerializer,
+            400: OpenApiResponse(description="Ошибка валидации"),
+            401: OpenApiResponse(description="Не авторизован"),
+        },
+    )
     def patch(self, request):
         s = ClientProfileUpdateSerializer(instance=request.user, data=request.data, partial=True)
         s.is_valid(raise_exception=True)
@@ -63,6 +82,16 @@ class ClientProfileAPIView(APIView):
 class ClientChangePasswordAPIView(APIView):
     permission_classes = [IsAuthenticated]
 
+    @extend_schema(
+        summary="Смена пароля",
+        description="Меняет пароль текущего пользователя (нужен старый пароль).",
+        request=ChangePasswordSerializer,
+        responses={
+            200: OpenApiResponse(description="Пароль изменён"),
+            400: OpenApiResponse(description="Неверный текущий пароль / слабый новый пароль"),
+            401: OpenApiResponse(description="Не авторизован"),
+        },
+    )
     def post(self, request):
         s = ChangePasswordSerializer(data=request.data, context={"request": request})
         s.is_valid(raise_exception=True)
@@ -76,6 +105,19 @@ class ClientChangePasswordAPIView(APIView):
 class ClientRequestEmailChangeAPIView(APIView):
     permission_classes = [IsAuthenticated]
 
+    @extend_schema(
+        summary="Запрос смены email",
+        description=(
+                "Отправляет письмо на новый email со ссылкой подтверждения.\n\n"
+                "Фактическая смена email произойдёт только после перехода по ссылке подтверждения."
+        ),
+        request=RequestEmailChangeSerializer,
+        responses={
+            200: OpenApiResponse(description="Письмо отправлено"),
+            400: OpenApiResponse(description="Ошибка валидации (email занят/некорректен)"),
+            401: OpenApiResponse(description="Не авторизован"),
+        },
+    )
     def post(self, request):
         s = RequestEmailChangeSerializer(data=request.data)
         s.is_valid(raise_exception=True)
@@ -107,6 +149,19 @@ class ClientRequestEmailChangeAPIView(APIView):
 class ClientConfirmEmailChangeAPIView(APIView):
     permission_classes = [IsAuthenticated]
 
+    @extend_schema(
+        summary="Подтверждение смены email",
+        description=(
+                "Подтверждает смену email по подписанной ссылке.\n\n"
+                "Ссылка имеет срок действия (24 часа). Подтвердить может только владелец аккаунта."
+        ),
+        responses={
+            200: OpenApiResponse(description="Email обновлён"),
+            400: OpenApiResponse(description="Ссылка истекла/некорректна или email уже занят"),
+            403: OpenApiResponse(description="Попытка подтвердить чужую ссылку"),
+            401: OpenApiResponse(description="Не авторизован"),
+        },
+    )
     def get(self, request, signed, *args, **kwargs):
 
         try:
@@ -140,10 +195,33 @@ class ClientConfirmEmailChangeAPIView(APIView):
 class ClientAddressListCreateAPIView(APIView):
     permission_classes = [IsAuthenticated]
 
+    @extend_schema(
+        summary="Список адресов пользователя",
+        description="Возвращает все адреса пользователя (default — первым).",
+        responses={
+            200: AddressSerializer(many=True),
+            401: OpenApiResponse(description="Не авторизован"),
+        },
+    )
     def get(self, request):
         qs = Address.objects.filter(user=request.user).order_by("-is_default", "-id")
         return Response(AddressSerializer(qs, many=True).data)
 
+    @extend_schema(
+        summary="Создать адрес доставки",
+        description=(
+                "Создаёт новый адрес.\n\n"
+                "Правила:\n"
+                "- Первый адрес автоматически становится default.\n"
+                "- Если передан is_default=true — адрес станет единственным default."
+        ),
+        request=AddressCreateSerializer,
+        responses={
+            201: AddressSerializer,
+            400: OpenApiResponse(description="Ошибка валидации"),
+            401: OpenApiResponse(description="Не авторизован"),
+        },
+    )
     @transaction.atomic
     def post(self, request):
         s = AddressCreateSerializer(data=request.data)
@@ -178,12 +256,34 @@ class ClientAddressDetailAPIView(APIView):
     def get_object(self, request, address_id) -> Address:
         return Address.objects.filter(id=address_id, user=request.user).first()
 
+    @extend_schema(
+        summary="Получить адрес по id",
+        responses={
+            200: AddressSerializer,
+            404: OpenApiResponse(description="Адрес не найден"),
+            401: OpenApiResponse(description="Не авторизован"),
+        },
+    )
     def get(self, request, address_id):
         addr = self.get_object(request, address_id)
         if not addr:
             return Response({"detail": "Адрес не найден."}, status=status.HTTP_404_NOT_FOUND)
         return Response(AddressSerializer(addr).data)
 
+    @extend_schema(
+        summary="Обновить адрес по id",
+        description=(
+                "Частично обновляет адрес.\n\n"
+                "Если передан is_default=true — этот адрес станет единственным default."
+        ),
+        request=AddressUpdateSerializer,
+        responses={
+            200: AddressSerializer,
+            400: OpenApiResponse(description="Ошибка валидации"),
+            404: OpenApiResponse(description="Адрес не найден"),
+            401: OpenApiResponse(description="Не авторизован"),
+        },
+    )
     @transaction.atomic
     def patch(self, request, address_id):
         addr = self.get_object(request, address_id)
@@ -203,6 +303,15 @@ class ClientAddressDetailAPIView(APIView):
         updated.refresh_from_db()
         return Response(AddressSerializer(updated).data, status=status.HTTP_200_OK)
 
+    @extend_schema(
+        summary="Удалить адрес по id",
+        description="Удаляет адрес. Если удалён default — будет выбран новый default (если адреса остались).",
+        responses={
+            204: OpenApiResponse(description="Удалено"),
+            404: OpenApiResponse(description="Адрес не найден"),
+            401: OpenApiResponse(description="Не авторизован"),
+        },
+    )
     @transaction.atomic
     def delete(self, request, address_id):
         addr = self.get_object(request, address_id)
@@ -221,6 +330,15 @@ class ClientAddressDetailAPIView(APIView):
 class ClientAddressSetDefaultAPIView(APIView):
     permission_classes = [IsAuthenticated]
 
+    @extend_schema(
+        summary="Назначить адрес default",
+        description="Делает указанный адрес единственным default для пользователя.",
+        responses={
+            200: AddressSerializer,
+            404: OpenApiResponse(description="Адрес не найден"),
+            401: OpenApiResponse(description="Не авторизован"),
+        },
+    )
     @transaction.atomic
     def post(self, request, address_id):
         addr = Address.objects.filter(id=address_id, user=request.user).first()
@@ -236,6 +354,14 @@ class ClientAddressSetDefaultAPIView(APIView):
 class ClientOrdersAPIView(APIView):
     permission_classes = [IsAuthenticated]
 
+    @extend_schema(
+        summary="Список заказов пользователя",
+        description="Возвращает все заказы пользователя кроме корзины, с агрегатами total/shops_count/items_count.",
+        responses={
+            200: ClientOrderListSerializer(many=True),
+            401: OpenApiResponse(description="Не авторизован"),
+        },
+    )
     def get(self, request):
 
         qs = (
@@ -255,6 +381,15 @@ class ClientOrdersAPIView(APIView):
 class ClientOrderDetailAPIView(APIView):
     permission_classes = [IsAuthenticated]
 
+    @extend_schema(
+        summary="Деталка заказа пользователя",
+        description="Возвращает заказ (кроме корзины) со всеми подзаказами и позициями.",
+        responses={
+            200: ClientOrderDetailSerializer,
+            404: OpenApiResponse(description="Заказ не найден"),
+            401: OpenApiResponse(description="Не авторизован"),
+        },
+    )
     def get(self, request, order_id: int):
 
         order = (

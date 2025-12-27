@@ -1,6 +1,7 @@
 from django.conf import settings
 from django.db import transaction
 from django.db.models import F
+from drf_spectacular.utils import extend_schema
 from rest_framework.views import APIView
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.response import Response
@@ -162,6 +163,18 @@ def _send_admin_invoice(order: Order):
 class BasketAPIView(APIView):
     permission_classes = [IsAuthenticated]
 
+    @extend_schema(
+        summary="Получить корзину покупателя",
+        description=(
+                "Возвращает текущую корзину пользователя с типом `buyer`. "
+                "Если корзина отсутствует — создаётся новая. "
+                "Если адрес доставки не задан, автоматически подставляется адрес по умолчанию."
+        ),
+        responses={
+            200: BasketSerializer,
+            403: {"detail": "Доступно только пользователю-покупателю"},
+        },
+    )
     def get(self, request):
         _require_buyer(request)
         basket = _get_or_create_basket(request.user)
@@ -170,8 +183,20 @@ class BasketAPIView(APIView):
 
 
 class BasketAddAPIView(APIView):
-    permission_classes = [IsAuthenticated]
-
+    @extend_schema(
+    summary="Добавить товар в корзину",
+    description=(
+        "Добавляет товар (ProductInfo) в корзину покупателя. "
+        "Если подзаказ для магазина уже существует — количество увеличивается. "
+        "Проверяются остатки товара и доступность магазина."
+    ),
+    request=CartAddSerializer,
+    responses={
+        200: BasketSerializer,
+        400: {"detail": "Недостаточно товара на складе / магазин недоступен"},
+        403: {"detail": "Доступно только пользователю-покупателю"},
+    },
+    )
     @transaction.atomic
     def post(self, request):
         _require_buyer(request)
@@ -207,6 +232,19 @@ class BasketAddAPIView(APIView):
 class BasketRemoveAPIView(APIView):
     permission_classes = [IsAuthenticated]
 
+    @extend_schema(
+        summary="Удалить позицию из корзины",
+        description=(
+                "Удаляет конкретную позицию (OrderItem) из корзины покупателя. "
+                "Если после удаления подзаказ магазина становится пустым — он удаляется."
+        ),
+        request=CartRemoveSerializer,
+        responses={
+            200: BasketSerializer,
+            404: {"detail": "Позиция не найдена в корзине"},
+            403: {"detail": "Доступно только пользователю-покупателю"},
+        },
+    )
     @transaction.atomic
     def post(self, request):
         _require_buyer(request)
@@ -237,6 +275,27 @@ class BasketRemoveAPIView(APIView):
 class CheckoutAPIView(APIView):
     permission_classes = [IsAuthenticated]
 
+    @extend_schema(
+        summary="Оформить заказ",
+        description=(
+                "Оформляет заказ из текущей корзины покупателя.\n\n"
+                "Что происходит:\n"
+                "- Проверяется адрес доставки (переданный или дефолтный)\n"
+                "- Проверяется, что магазины принимают заказы\n"
+                "- Проверяются остатки товаров\n"
+                "- Остатки списываются с блокировкой (select_for_update)\n"
+                "- Заказ переводится в статус `placed`\n"
+                "- Подзаказы переводятся в статус `processing`\n"
+                "- Создаётся новая пустая корзина\n"
+                "- Асинхронно отправляются письма покупателю, магазинам и администратору"
+        ),
+        request=CheckoutSerializer,
+        responses={
+            200: {"success": True, "order_id": 1},
+            400: {"detail": "Корзина пуста / адрес не выбран / недостаточно товара"},
+            403: {"detail": "Доступно только пользователю-покупателю"},
+        },
+    )
     @transaction.atomic
     def post(self, request):
         _require_buyer(request)
@@ -355,6 +414,19 @@ class CheckoutAPIView(APIView):
 class BasketSetAddressAPIView(APIView):
     permission_classes = [IsAuthenticated]
 
+    @extend_schema(
+        summary="Установить адрес доставки для корзины",
+        description=(
+                "Устанавливает адрес доставки для текущей корзины покупателя. "
+                "Адрес должен принадлежать пользователю."
+        ),
+        request=BasketSetAddressSerializer,
+        responses={
+            200: BasketSerializer,
+            400: {"detail": "Адрес не найден"},
+            403: {"detail": "Доступно только пользователю-покупателю"},
+        },
+    )
     @transaction.atomic
     def post(self, request):
         _require_buyer(request)

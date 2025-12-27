@@ -197,6 +197,11 @@ python manage.py test backend -v 2
 
 ## API endpoints
 
+### OPENApi
+
+/api/schema
+/api/docs - документация api
+
 ### Аутентификация
 
 POST /api/auth/register/

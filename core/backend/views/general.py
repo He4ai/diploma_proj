@@ -7,8 +7,25 @@ from rest_framework.filters import OrderingFilter
 from backend.models import Product, ProductInfo, Shop
 from backend.serializers.general import ProductSerializer, ProductInfoCatalogSerializer, ShopPublicSerializer
 from backend.filters.general import ProductFilter, ProductInfoFilter
+from drf_spectacular.utils import extend_schema, OpenApiParameter, OpenApiResponse
+from drf_spectacular.types import OpenApiTypes
+
 
 # Все продукты-эталоны
+@extend_schema(
+    summary="Список продуктов (эталоны)",
+    description=(
+        "Возвращает список продуктов-эталонов (Product).\n\n"
+        "Дополнительно считает агрегаты по офферам (ProductInfo):\n"
+        "- min_price: минимальная цена среди офферов\n"
+        "- max_price: максимальная цена среди офферов\n"
+        "- offers_count: количество офферов\n\n"
+        "Поддерживает фильтрацию (DjangoFilterBackend) и сортировку (OrderingFilter)."
+    ),
+    responses={
+        200: ProductSerializer(many=True),
+    },
+)
 class ProductListAPIView(ListAPIView):
     permission_classes = [AllowAny]
     serializer_class = ProductSerializer
@@ -31,13 +48,20 @@ class ProductListAPIView(ListAPIView):
             )
         )
 
-
+@extend_schema(
+    summary="Каталог офферов (витрина товаров)",
+    description=(
+        "Витрина офферов (ProductInfo) — то, что реально продаётся.\n\n"
+        "Возвращаются только доступные офферы:\n"
+        "- quantity > 0\n"
+        "- shop.state = True (магазин принимает заказы)\n\n"
+        "Поддерживает фильтры и сортировку."
+    ),
+    responses={
+        200: ProductInfoCatalogSerializer(many=True),
+    },
+)
 class CatalogOfferListAPIView(ListAPIView):
-    """
-    2) Витрина офферов (ProductInfo) — то, что реально продается.
-    Фильтры: цена, категория, магазин, model-слиг, поиск.
-    Сортировки: price / quantity / и т.д.
-    """
     permission_classes = [AllowAny]
     serializer_class = ProductInfoCatalogSerializer
 
@@ -58,6 +82,29 @@ class CatalogOfferListAPIView(ListAPIView):
         )
 
 # Публичный профиль магазина
+@extend_schema(
+    summary="Публичный профиль магазина",
+    description=(
+        "Возвращает публичную информацию о магазине.\n\n"
+        "Дополнительно считает агрегаты по офферам:\n"
+        "- offers_count\n"
+        "- min_price\n"
+        "- max_price"
+    ),
+    parameters=[
+        OpenApiParameter(
+            name="shop_id",
+            type=OpenApiTypes.INT,
+            location=OpenApiParameter.PATH,
+            required=True,
+            description="ID магазина",
+        )
+    ],
+    responses={
+        200: ShopPublicSerializer,
+        404: OpenApiResponse(description="Магазин не найден"),
+    },
+)
 class ShopPublicDetailAPIView(RetrieveAPIView):
     permission_classes = [AllowAny]
     serializer_class = ShopPublicSerializer
@@ -75,6 +122,29 @@ class ShopPublicDetailAPIView(RetrieveAPIView):
         )
 
 # Публичные товары/офферы конкретного магазина
+@extend_schema(
+    summary="Публичные офферы магазина",
+    description=(
+        "Список офферов (ProductInfo) конкретного магазина.\n\n"
+        "Возвращаются только доступные офферы:\n"
+        "- quantity > 0\n"
+        "- shop.state = True\n\n"
+        "Поддерживает фильтры и сортировку."
+    ),
+    parameters=[
+        OpenApiParameter(
+            name="shop_id",
+            type=OpenApiTypes.INT,
+            location=OpenApiParameter.PATH,
+            required=True,
+            description="ID магазина",
+        )
+    ],
+    responses={
+        200: ProductInfoCatalogSerializer(many=True),
+        404: OpenApiResponse(description="Магазин не найден"),
+    },
+)
 class ShopPublicOffersAPIView(ListAPIView):
     permission_classes = [AllowAny]
     serializer_class = ProductInfoCatalogSerializer

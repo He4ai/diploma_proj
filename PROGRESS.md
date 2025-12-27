@@ -87,6 +87,7 @@
   - TokenAuthentication (API-клиенты)
 - Проект покрыт автотестами
 - Все тесты проходят (`python manage.py test`)
+- Документация API с помощью DRF-Spectacular и Swagger
 
 ---
 
