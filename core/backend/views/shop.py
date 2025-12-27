@@ -1,12 +1,7 @@
 from django.core.validators import URLValidator
 from django.core.exceptions import ValidationError
-from django.db import transaction
 from django.db.models import Prefetch
 from rest_framework.exceptions import NotFound
-
-import requests
-from yaml import safe_load
-from yaml.error import YAMLError
 
 from rest_framework.views import APIView
 from rest_framework.permissions import IsAuthenticated
@@ -14,7 +9,8 @@ from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.exceptions import PermissionDenied
 
-from backend.models import Shop, Category, ProductInfo, Product, Parameter, ProductParameter, OrderItem, ShopOrder
+from backend.tasks import import_shop_yaml_task
+from backend.models import Shop, ProductInfo, OrderItem, ShopOrder
 from backend.serializers.shop import (
     ChangeShopInfoSerializer,
     ShopOrderSerializer,
@@ -42,108 +38,33 @@ class ImportShopInfoAPIView(APIView):
 
     def post(self, request, *args, **kwargs):
         check_rights(request)
+        shop = get_shop(request)
 
         url = request.data.get("url")
         if not url:
-            return Response({"success": False, "error": "Не указан url"}, status=status.HTTP_400_BAD_REQUEST)
+            return Response(
+                {"success": False, "error": "Не указан url"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
         try:
             URLValidator()(url)
         except ValidationError as e:
-            return Response({"success": False, "error": e.message}, status=status.HTTP_400_BAD_REQUEST)
-
-        try:
-            resp = requests.get(url, timeout=10)
-            resp.raise_for_status()
-        except requests.RequestException as e:
-            return Response({"success": False, "error": f"Не удалось скачать файл: {e}"}, status=status.HTTP_400_BAD_REQUEST)
-
-        try:
-            data = safe_load(resp.content)
-        except YAMLError:
-            return Response({"success": False, "error": "Файл не является корректным YAML."}, status=status.HTTP_400_BAD_REQUEST)
-
-        if not isinstance(data, dict):
-            return Response({"success": False, "error": "Некорректная структура YAML."}, status=status.HTTP_400_BAD_REQUEST)
-
-        for k in ("shop", "categories", "goods"):
-            if k not in data:
-                return Response({"success": False, "error": f"В YAML нет ключа '{k}'."}, status=status.HTTP_400_BAD_REQUEST)
-
-        with transaction.atomic():
-            shop, created = Shop.objects.get_or_create(
-                user=request.user,
-                defaults={"name": data["shop"]},
+            return Response(
+                {"success": False, "error": e.message},
+                status=status.HTTP_400_BAD_REQUEST,
             )
-            if shop.name != data["shop"]:
-                shop.name = data["shop"]
-                shop.save(update_fields=["name"])
 
-            shop.categories.clear()
+        # Логика перенесена в таск
+        import_shop_yaml_task.delay(shop.id, url)
 
-            cat_map = {}
-            for c in (data.get("categories") or []):
-                cid = c.get("id")
-                cname = (c.get("name") or "").strip()
-                if cid is None or not cname:
-                    continue
-
-                category_obj, _ = Category.objects.get_or_create(name=cname)
-                category_obj.shops.add(shop)
-                cat_map[cid] = category_obj
-
-            ProductInfo.objects.filter(shop=shop).delete()
-
-            for item in (data.get("goods") or []):
-                external_id = item.get("id", 0)
-                model = (item.get("model") or "").strip()
-                name = (item.get("name") or "").strip()
-                cid = item.get("category")
-
-                if not model or not name or cid is None:
-                    continue
-
-                category_obj = cat_map.get(cid)
-                if not category_obj:
-                    continue
-
-                product, _ = Product.objects.get_or_create(
-                    model=model,
-                    defaults={"name": name, "category": category_obj},
-                )
-
-                p_updated = False
-                if product.name != name:
-                    product.name = name
-                    p_updated = True
-
-                if product.category_id != category_obj.id:
-                    product.category = category_obj
-                    p_updated = True
-                if p_updated:
-                    product.save(update_fields=["name", "category_id"])
-
-                product_info = ProductInfo.objects.create(
-                    product=product,
-                    shop=shop,
-                    external_id=external_id,
-                    quantity=item.get("quantity", 0),
-                    price=item.get("price", 0),
-                    price_rrc=item.get("price_rrc", 0),
-                )
-
-                params = item.get("parameters") or {}
-                if isinstance(params, dict):
-                    for pname, pvalue in params.items():
-                        param_obj, _ = Parameter.objects.get_or_create(name=str(pname))
-                        ProductParameter.objects.create(
-                            product_info=product_info,
-                            parameter=param_obj,
-                            value=str(pvalue),
-                        )
-
-        return Response({"success": True}, status=status.HTTP_201_CREATED)
-
+        return Response(
+            {
+                "success": True,
+                "message": "Импорт поставлен в очередь и будет выполнен асинхронно",
+            },
+            status=status.HTTP_202_ACCEPTED,
+        )
 
 class GetOrdersAPIView(APIView):
     permission_classes = [IsAuthenticated]

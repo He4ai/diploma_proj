@@ -1,13 +1,13 @@
 from django.conf import settings
-from django.core.mail import send_mail
 from django.db import transaction
 from django.db.models import F
 from rest_framework.views import APIView
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.response import Response
 from rest_framework import status
-from django.db.models import Sum
 from backend.models import ProductInfo
+
+from backend.tasks import send_email_task
 
 from backend.models import Order, ShopOrder, OrderItem, Address
 from backend.serializers.buyer_order import (
@@ -88,13 +88,7 @@ def _send_shop_invoice(shop_order: ShopOrder):
         f"Итого: {total}\n"
     )
 
-    send_mail(
-        subject=subject,
-        message=body,
-        from_email=getattr(settings, "DEFAULT_FROM_EMAIL", None),
-        recipient_list=[to_email],
-        fail_silently=False,
-    )
+    send_email_task.delay(subject, body, [to_email])
 
 
 def _send_buyer_confirmation(order: Order):
@@ -124,13 +118,7 @@ def _send_buyer_confirmation(order: Order):
         f"Итого по заказу: {total}\n"
     )
 
-    send_mail(
-        subject=subject,
-        message=body,
-        from_email=getattr(settings, "DEFAULT_FROM_EMAIL", None),
-        recipient_list=[to_email],
-        fail_silently=False,
-    )
+    send_email_task.delay(subject, body, [to_email])
 
 def _send_admin_invoice(order: Order):
     if not settings.ADMINS:
@@ -147,6 +135,7 @@ def _send_admin_invoice(order: Order):
         "items__product_info__product"
     )
 
+    subject = f"Заказ #{order.id} принят"
     for so in shop_orders:
         lines.append(f"\nМагазин: {so.shop.name}")
         for item in so.items.all():
@@ -166,13 +155,8 @@ def _send_admin_invoice(order: Order):
         f"Итого: {total}"
     )
 
-    send_mail(
-        subject=f"Накладная по заказу #{order.id}",
-        message=body,
-        from_email=settings.DEFAULT_FROM_EMAIL,
-        recipient_list=admin_emails,
-        fail_silently=False,
-    )
+    send_email_task.delay(subject, body, admin_emails)
+
 
 
 class BasketAPIView(APIView):

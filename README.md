@@ -96,6 +96,19 @@
 
 ---
 
+## Асинхронные задачи (Celery)
+
+В проекте используется Celery для выполнения фоновых задач:
+
+- отправка писем (покупателю, магазину, администратору);
+- асинхронный импорт каталога магазина из YAML-файла.
+
+### Зависимости
+- Redis — брокер сообщений
+- Celery — очередь задач
+
+---
+
 ## Стек технологий
 
 - Python 3.11
@@ -134,6 +147,7 @@ DJANGO_SECRET_KEY=your_secret_key
 Из папки /core:
 ```bash
 docker compose up -d
+docker compose up -d redis
 ```
 
 Проверка статуса:
@@ -163,6 +177,7 @@ python -m venv .venv
 pip install -r requirements.txt
 python manage.py migrate
 python manage.py runserver
+celery -A config worker -l info -P solo
 ```
 
 После запуска проект доступен по адресу:
