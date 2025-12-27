@@ -94,6 +94,20 @@ REST_FRAMEWORK = {
         "rest_framework.authentication.TokenAuthentication",
     ],
     "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
+
+    "DEFAULT_THROTTLE_CLASSES": [
+        "rest_framework.throttling.AnonRateThrottle",
+        "rest_framework.throttling.UserRateThrottle",
+    ],
+    "DEFAULT_THROTTLE_RATES": {
+        "anon": "30/min",      # неавторизованные
+        "user": "120/min",     # авторизованные
+
+        "auth": "10/min",
+        "password_reset": "5/min",
+        "import": "3/min",
+        "checkout": "10/min",
+    },
 }
 
 ADMINS = [
@@ -143,3 +157,15 @@ SPECTACULAR_SETTINGS = {
     "SERVE_INCLUDE_SCHEMA": False,
 }
 
+CACHES = {
+    "default": {
+        "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
+        "LOCATION": "unique",
+    }
+}
+
+if os.getenv("DJANGO_TESTING") == "1":
+    EMAIL_BACKEND = "django.core.mail.backends.locmem.EmailBackend"
+
+    CELERY_TASK_ALWAYS_EAGER = True
+    CELERY_TASK_EAGER_PROPAGATES = True

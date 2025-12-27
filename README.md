@@ -200,6 +200,7 @@ python manage.py test backend -v 2
 ### OPENApi
 
 /api/schema
+
 /api/docs - документация api
 
 ### Аутентификация

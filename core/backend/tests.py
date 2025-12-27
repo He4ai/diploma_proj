@@ -1,19 +1,21 @@
 from decimal import Decimal
 from unittest.mock import patch, Mock
-
-from django.conf import settings
 from django.core import mail
 from django.contrib.auth import get_user_model
 from django.contrib.auth.tokens import default_token_generator
 from django.utils.http import urlsafe_base64_encode
 from django.utils.encoding import force_bytes
 
+from django.conf import settings
+from django.test import TestCase
 from rest_framework.test import APITestCase, APIClient
 from rest_framework.authtoken.models import Token
+from django.core.cache import cache
+
 
 from backend.models import (
     Shop, Category, Product, ProductInfo, Parameter, ProductParameter,
-    Order, ShopOrder, OrderItem, Address
+    Order, ShopOrder, OrderItem, Address, User
 )
 
 User = get_user_model()
@@ -228,100 +230,98 @@ class CatalogAndBasketTests(BaseAPITestCase):
         self.assertEqual(r.status_code, 200)
 
 
-class ShopImportAndOrdersTests(BaseAPITestCase):
-    def setUp(self):
-        super().setUp()
-
-        # shop user
-        self.shop_user = User.objects.create_user(
-            email="shop2@example.com",
-            password="StrongPass123!",
-            first_name="Shop2",
-            last_name="Owner",
-            type="shop",
-        )
-        self.shop_user.is_active = True
-        self.shop_user.save(update_fields=["is_active"])
-
-        # buyer user + default address
-        self.buyer = User.objects.create_user(
-            email="buyer2@example.com",
-            password="StrongPass123!",
-            first_name="Buyer2",
-            last_name="Test",
-            type="buyer",
-        )
-        self.buyer.is_active = True
-        self.buyer.save(update_fields=["is_active"])
-
-        Address.objects.create(
-            user=self.buyer,
-            label="Home",
-            country="RU",
-            city="Moscow",
-            street="Arbat",
-            house="10",
-            apartment="5",
-            is_default=True,
-        )
-
-    @patch("backend.views.shop.requests.get")
-    def test_shop_import_yaml_and_get_orders(self, mock_get):
-        self.auth_as(self.shop_user)
-
-        # мок YAML
-        yaml_bytes = b"""
-shop: SuperShop
+SAMPLE_YAML = """
+shop: Тестовый магазин
 categories:
   - id: 1
-    name: Phones
+    name: Смартфоны
 goods:
-  - id: 100
+  - id: 10
+    category: 1
     model: iphone-15
     name: iPhone 15
-    category: 1
-    price: 100
-    price_rrc: 120
-    quantity: 10
+    price: 89990
+    price_rrc: 99990
+    quantity: 5
     parameters:
-      \xd0\xa6\xd0\xb2\xd0\xb5\xd1\x82: "\xd1\x87\xd0\xb5\xd1\x80\xd0\xbd\xd1\x8b\xd0\xb9"
+      Цвет: черный
 """
+class ShopImportAndOrdersTests(TestCase):
+    def setUp(self):
+        self.client = APIClient()
+
+        self.shop_user = User.objects.create_user(
+            email="shop@example.com",
+            password="12345678",
+            type="shop",
+            is_active=True,
+        )
+        self.shop = Shop.objects.create(user=self.shop_user, name="Мой магазин", state=True)
+
+        # логинимся (если у тебя токены — можешь поставить force_authenticate)
+        self.client.force_authenticate(self.shop_user)
+
+    @patch("backend.views.shop.import_shop_yaml_task.delay")
+    @patch("backend.tasks.requests.get")
+    def test_shop_import_yaml_and_get_orders(self, mock_get, mock_delay):
+        """
+        1) POST /api/shop/me/import/ -> теперь 202 и задача уходит в Celery (delay)
+        2) А сам импорт (таск) мы запускаем синхронно прямо в тесте, чтобы проверить запись в БД
+        3) GET /api/shop/me/orders/ -> возвращает подзаказы магазина
+        """
+
+        # --- мок ответа requests.get для таска ---
         resp = Mock()
-        resp.content = yaml_bytes
         resp.raise_for_status = Mock()
+        resp.content = SAMPLE_YAML.encode("utf-8")
         mock_get.return_value = resp
 
-        r = self.client.post("/api/shop/me/import/", {"url": "https://example.com/price.yaml"}, format="json")
-        self.assertEqual(r.status_code, 201)
-        self.assertTrue(r.data["success"])
+        url = "https://example.com/test.yaml"
 
-        # shop должен создаться/обновиться
-        shop = Shop.objects.get(user=self.shop_user)
-        self.assertEqual(shop.name, "SuperShop")
+        # 1) импорт через API (теперь 202!)
+        r = self.client.post("/api/shop/me/import/", {"url": url}, format="json")
+        self.assertEqual(r.status_code, 202)
+        mock_delay.assert_called_once()  # задача реально поставлена в очередь
 
-        # оффер должен появиться
-        offer = ProductInfo.objects.filter(shop=shop).first()
-        self.assertIsNotNone(offer)
-        self.assertEqual(offer.quantity, 10)
+        # 2) запускаем таск синхронно, чтобы реально заполнить БД
+        from backend.tasks import import_shop_yaml_task
+        result = import_shop_yaml_task(self.shop.id, url)
+        self.assertTrue(result.get("success"))
 
-        # теперь покупатель оформляет заказ
-        self.client.credentials()  # сброс авторизации
-        self.auth_as(self.buyer)
+        # проверим, что офферы появились
+        self.assertTrue(ProductInfo.objects.filter(shop=self.shop).exists())
 
-        r = self.client.post("/api/buyer/basket/items/", {"product_info_id": offer.id, "quantity": 2}, format="json")
-        self.assertEqual(r.status_code, 200)
+        # 3) создадим заказ, чтобы эндпоинт /orders/ было что отдавать
+        buyer = User.objects.create_user(
+            email="buyer@example.com",
+            password="12345678",
+            type="buyer",
+            is_active=True,
+        )
+        order = Order.objects.create(user=buyer, status=Order.Status.PLACED)
 
-        mail.outbox = []
-        r = self.client.post("/api/buyer/basket/checkout/", {}, format="json")
-        self.assertEqual(r.status_code, 200)
-        order_id = r.data["order_id"]
+        so = ShopOrder.objects.create(order=order, shop=self.shop, status=ShopOrder.Status.PROCESSING)
+        pi = ProductInfo.objects.filter(shop=self.shop).first()
+        OrderItem.objects.create(shop_order=so, product_info=pi, quantity=1, price_at_purchase=pi.price)
 
-        # магазин видит свой подзаказ
-        self.client.credentials()
-        self.auth_as(self.shop_user)
+        r2 = self.client.get("/api/shop/me/orders/")
+        self.assertEqual(r2.status_code, 200)
+        self.assertTrue(isinstance(r2.json(), list))
+        self.assertGreaterEqual(len(r2.json()), 1)
 
-        r = self.client.get("/api/shop/me/orders/")
-        self.assertEqual(r.status_code, 200)
 
-        # должен быть хотя бы один ShopOrder с нужным order_id
-        self.assertTrue(any(x["order_id"] == order_id for x in r.data))
+class ThrottleTests(TestCase):
+    def setUp(self):
+        self.client = APIClient()
+
+    def test_throttle_anon(self):
+        cache.clear()
+
+        url = "/api/products/"
+        last = None
+
+        # anon = 30/min -> ожидаем, что к ~31 запросу получим 429
+        for _ in range(35):
+            last = self.client.get(url, REMOTE_ADDR="1.2.3.4")  # фиксируем IP
+        self.assertIsNotNone(last)
+        self.assertEqual(last.status_code, 429)

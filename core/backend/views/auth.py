@@ -12,6 +12,8 @@ from django.conf import settings
 from django.core.mail import send_mail
 from drf_spectacular.utils import extend_schema, OpenApiResponse
 
+from backend.throttles import PasswordResetThrottle, AuthThrottle
+
 
 
 from backend.serializers.auth import UserLoginSerializer, RegisterSerializer, PasswordResetRequestSerializer, PasswordResetConfirmSerializer
@@ -20,6 +22,7 @@ User = get_user_model()
 
 class AuthAPIView(APIView):
     permission_classes = [AllowAny]
+    throttle_classes = [AuthThrottle]
 
     @extend_schema(
         summary="Вход (логин) пользователя",
@@ -138,6 +141,7 @@ class LogoutAPIView(APIView):
 
 class PasswordResetRequestAPIView(APIView):
     permission_classes = [AllowAny]
+    throttle_classes = [PasswordResetThrottle]
 
     @extend_schema(
         summary="Запрос сброса пароля",

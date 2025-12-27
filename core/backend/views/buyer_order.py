@@ -8,6 +8,8 @@ from rest_framework.response import Response
 from rest_framework import status
 from backend.models import ProductInfo
 
+from backend.throttles import CheckoutThrottle
+
 from backend.tasks import send_email_task
 
 from backend.models import Order, ShopOrder, OrderItem, Address
@@ -274,6 +276,7 @@ class BasketRemoveAPIView(APIView):
 
 class CheckoutAPIView(APIView):
     permission_classes = [IsAuthenticated]
+    throttle_classes = [CheckoutThrottle]
 
     @extend_schema(
         summary="Оформить заказ",

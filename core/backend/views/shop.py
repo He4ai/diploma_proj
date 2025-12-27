@@ -17,6 +17,7 @@ from drf_spectacular.utils import (
 from drf_spectacular.types import OpenApiTypes
 from rest_framework import serializers
 
+from backend.throttles import ImportThrottle
 
 from backend.tasks import import_shop_yaml_task
 from backend.models import Shop, ProductInfo, OrderItem, ShopOrder
@@ -71,6 +72,7 @@ def get_shop(request) -> Shop:
 )
 class ImportShopInfoAPIView(APIView):
     permission_classes = [IsAuthenticated]
+    throttle_classes = [ImportThrottle]
 
     def post(self, request, *args, **kwargs):
         check_rights(request)
