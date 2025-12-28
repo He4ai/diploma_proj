@@ -10,6 +10,7 @@ from backend.views.buyer_order import BasketAPIView, BasketAddAPIView, BasketRem
 from backend.views.client_profile import ClientProfileAPIView, ClientChangePasswordAPIView, \
     ClientRequestEmailChangeAPIView, ClientConfirmEmailChangeAPIView, ClientAddressListCreateAPIView, \
     ClientAddressDetailAPIView, ClientAddressSetDefaultAPIView, ClientOrdersAPIView, ClientOrderDetailAPIView
+from backend.views.debug import RaiseExceptionAPIView
 from backend.views.general import ProductListAPIView, CatalogOfferListAPIView, ShopPublicDetailAPIView, \
     ShopPublicOffersAPIView
 from backend.views.shop import ImportShopInfoAPIView, GetOrdersAPIView, \
@@ -67,4 +68,7 @@ urlpatterns = [
     path("api/client/profile/addresses/<int:address_id>/set-default/", ClientAddressSetDefaultAPIView.as_view(), name="client-address-set-default"),
     path("api/client/orders/", ClientOrdersAPIView.as_view(), name="client-orders"),
     path("api/client/orders/<int:order_id>/", ClientOrderDetailAPIView.as_view(), name="client-order-detail"),
+
+    # DEBUG
+    path("api/debug/error/", RaiseExceptionAPIView.as_view(), name="debug-error"),
 ]
