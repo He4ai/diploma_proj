@@ -325,3 +325,11 @@ class ThrottleTests(TestCase):
             last = self.client.get(url, REMOTE_ADDR="1.2.3.4")  # фиксируем IP
         self.assertIsNotNone(last)
         self.assertEqual(last.status_code, 429)
+
+import sys
+
+if "test" in sys.argv:
+    EMAIL_BACKEND = "django.core.mail.backends.locmem.EmailBackend"
+
+    CELERY_TASK_ALWAYS_EAGER = True
+    CELERY_TASK_EAGER_PROPAGATES = True

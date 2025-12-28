@@ -15,6 +15,7 @@ import sentry_sdk
 from sentry_sdk.integrations.django import DjangoIntegration
 from dotenv import load_dotenv
 from pathlib import Path
+import sys
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 load_dotenv(BASE_DIR / ".env") #подключение .env
@@ -202,13 +203,20 @@ LOGIN_REDIRECT_URL = "/api/client/profile/"
 
 SENTRY_DSN = os.getenv("SENTRY_DSN", "")
 
-if SENTRY_DSN and os.getenv("DJANGO_TESTING") != "1":
+TESTING = (os.getenv("DJANGO_TESTING") == "1") or ("test" in sys.argv)
+
+if TESTING:
+    EMAIL_BACKEND = "django.core.mail.backends.locmem.EmailBackend"
+    CELERY_TASK_ALWAYS_EAGER = True
+    CELERY_TASK_EAGER_PROPAGATES = True
+
+if SENTRY_DSN and not TESTING:
     sentry_sdk.init(
         dsn=SENTRY_DSN,
         integrations=[DjangoIntegration()],
         environment=os.getenv("SENTRY_ENVIRONMENT", "local"),
         traces_sample_rate=float(os.getenv("SENTRY_TRACES_SAMPLE_RATE", "0.0")),
-        send_default_pii=True,  # если хочешь видеть user/email в событиях
+        send_default_pii=True,
     )
 
 
