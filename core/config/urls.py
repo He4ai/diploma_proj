@@ -1,5 +1,5 @@
 from django.contrib import admin
-from django.urls import path
+from django.urls import path, include
 
 from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView
 
@@ -14,6 +14,7 @@ from backend.views.general import ProductListAPIView, CatalogOfferListAPIView, S
     ShopPublicOffersAPIView
 from backend.views.shop import ImportShopInfoAPIView, GetOrdersAPIView, \
     ChangeOrderStatusAPIView, ChangeShopInfoAPIView, ProductInfoAPIView
+from backend.views.social_auth import GoogleLogin
 
 urlpatterns = [
     path("admin/", admin.site.urls),
@@ -29,6 +30,10 @@ urlpatterns = [
     path("api/auth/activate/<str:uidb64>/<str:token>/", ActivateAPIView.as_view(), name="auth-activate"),
     path("api/auth/password/reset/", PasswordResetRequestAPIView.as_view()),
     path("api/auth/password/reset/confirm/<str:uidb64>/<str:token>/", PasswordResetConfirmAPIView.as_view()),
+
+    # SOCIAL AUTH
+    path("api/auth/google/", GoogleLogin.as_view(), name="auth-google"),
+    path("accounts/", include("allauth.urls")),
 
     # SHOP (owner)
     path("api/shop/me/", ChangeShopInfoAPIView.as_view(), name="shop-me"),

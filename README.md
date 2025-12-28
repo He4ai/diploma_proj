@@ -41,6 +41,7 @@
 - Logout
 - Смена пароля
 - Смена email с подтверждением по ссылке
+- Регистрация и вход через Google
 
 Используется гибридная аутентификация:
 - `SessionAuthentication` — для DRF Browsable API
@@ -216,6 +217,11 @@ POST /api/auth/logout/
 POST /api/auth/password/reset/
 
 POST /api/auth/password/reset/confirm/<uid>/<token>/
+
+### Аутентификация через сторонние сервисы (Google)
+
+api/auth/google/
+accounts/google/login/
 
 ### Каталог (публичный)
 
