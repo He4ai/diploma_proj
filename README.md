@@ -41,7 +41,7 @@
 - Logout
 - Смена пароля
 - Смена email с подтверждением по ссылке
-- Регистрация и вход через Google
+- Регистрация и вход через Google (OAuth 2.0)
 
 Используется гибридная аутентификация:
 - `SessionAuthentication` — для DRF Browsable API
@@ -99,10 +99,48 @@
 
 ## Асинхронные задачи (Celery)
 
-В проекте используется Celery для выполнения фоновых задач:
+В проекте используется Celery для выполнения фоновых задач с целью
+разгрузки основного приложения и оптимизации обработки запросов.
 
-- отправка писем (покупателю, магазину, администратору);
-- асинхронный импорт каталога магазина из YAML-файла.
+Асинхронно выполняются:
+- отправка email-уведомлений (покупателю, поставщику, администратору);
+- импорт каталога магазина из YAML-файла по URL.
+
+В тестовом окружении Celery работает в eager-режиме, что позволяет
+корректно тестировать асинхронные задачи без запуска воркеров.
+
+---
+
+## Ограничение частоты запросов (Throttling)
+
+В проекте реализовано ограничение частоты запросов средствами Django REST Framework.
+
+Используются следующие типы throttling:
+- для неавторизованных пользователей (AnonRateThrottle);
+- для авторизованных пользователей (UserRateThrottle).
+
+Также настроены отдельные лимиты для чувствительных операций:
+- аутентификация;
+- сброс пароля;
+- оформление заказа;
+- импорт каталога магазина.
+
+Это позволяет защитить API от злоупотреблений и избыточной нагрузки.
+
+---
+
+## Мониторинг ошибок
+
+В проект интегрирован сервис Sentry для отслеживания серверных ошибок.
+
+Sentry автоматически фиксирует:
+- необработанные исключения;
+- stack trace;
+- контекст выполнения запроса.
+
+Это позволяет оперативно выявлять и анализировать ошибки в работе API.
+
+---
 
 ### Зависимости
 - Redis — брокер сообщений
@@ -198,25 +236,27 @@ python manage.py test backend -v 2
 
 ## API endpoints
 
-### OPENApi
+### OpenAPI / Swagger
 
-/api/schema
+Документация API формируется автоматически с использованием drf-spectacular.
 
-/api/docs - документация api
+`/api/schema/` — OpenAPI schema
+
+`/api/docs/` — Swagger UI с описанием эндпоинтов, параметров и ответов
 
 ### Аутентификация
 
-POST /api/auth/register/
+POST `/api/auth/register/`
 
-GET /api/auth/activate/<uid>/<token>/
+GET `/api/auth/activate/<uid>/<token>/`
 
-POST /api/auth/login/
+POST `/api/auth/login/`
 
-POST /api/auth/logout/
+POST `/api/auth/logout/`
 
-POST /api/auth/password/reset/
+POST `/api/auth/password/reset/`
 
-POST /api/auth/password/reset/confirm/<uid>/<token>/
+POST `/api/auth/password/reset/confirm/<uid>/<token>/`
 
 ### Аутентификация через сторонние сервисы (Google)
 
@@ -225,67 +265,67 @@ accounts/google/login/
 
 ### Каталог (публичный)
 
-GET /api/catalog/
+GET `/api/catalog/`
 
-GET /api/products/
+GET `/api/products/`
 
-GET /api/shops/<shop_id>/
+GET `/api/shops/<shop_id>/`
 
-GET /api/shops/<shop_id>/offers/
+GET `/api/shops/<shop_id>/offers/`
 
 ### Покупатель
 
-GET /api/buyer/basket/
+GET `/api/buyer/basket/`
 
-POST /api/buyer/basket/items/
+POST `/api/buyer/basket/items/`
 
-POST /api/buyer/basket/items/remove/
+POST `/api/buyer/basket/items/remove/`
 
-POST /api/buyer/basket/checkout/
+POST `/api/buyer/basket/checkout/`
 
-POST /api/buyer/basket/address/
+POST `/api/buyer/basket/address/`
 
 ### Профиль клиента
 
-GET /api/client/profile/
+GET `/api/client/profile/`
 
-PATCH /api/client/profile/
+PATCH `/api/client/profile/`
 
-POST /api/client/profile/password/
+POST `/api/client/profile/password/`
 
-POST /api/client/profile/email/change/
+POST `/api/client/profile/email/change/`
 
-GET /api/client/profile/addresses/
+GET `/api/client/profile/addresses/`
 
-POST /api/client/profile/addresses/
+POST `/api/client/profile/addresses/`
 
-PATCH /api/client/profile/addresses/<id>/
+PATCH `/api/client/profile/addresses/<id>/`
 
-DELETE /api/client/profile/addresses/<id>/
+DELETE `/api/client/profile/addresses/<id>/`
 
-GET /api/client/orders/
+GET `/api/client/orders/`
 
-GET /api/client/orders/<id>/
+GET `/api/client/orders/<id>/`
 
 ### Поставщик
 
-GET /api/shop/me/
+GET `/api/shop/me/`
 
-PATCH /api/shop/me/
+PATCH `/api/shop/me/`
 
-POST /api/shop/me/import/
+POST `/api/shop/me/import/`
 
-GET /api/shop/me/orders/
+GET `/api/shop/me/orders/`
 
-PATCH /api/shop/me/orders/<order_id>/status/
+PATCH `/api/shop/me/orders/<order_id>/status/`
 
-GET /api/shop/me/products/
+GET `/api/shop/me/products/`
 
-POST /api/shop/me/products/
+POST `/api/shop/me/products/`
 
-PATCH /api/shop/me/products/<id>/
+PATCH `/api/shop/me/products/<id>/`
 
-DELETE /api/shop/me/products/<id>/
+DELETE `/api/shop/me/products/<id>/`
 
 ## Примечания
 
@@ -293,4 +333,9 @@ DELETE /api/shop/me/products/<id>/
 - Frontend не требуется
 - Архитектура позволяет легко расширять функционал
 - Код структурирован и покрыт тестами
+
+Проект реализован в соответствии с техническим заданием и демонстрирует
+работу с Django REST Framework, асинхронными задачами, внешними сервисами
+и безопасностью API.
+
 
