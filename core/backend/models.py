@@ -57,6 +57,8 @@ class User(AbstractUser):
         validators=[username_validator],
         blank=True,
         verbose_name="Имя пользователя",
+        unique=False,
+        null=True,
     )
 
     type = models.CharField(
@@ -228,7 +230,7 @@ class ShopOrder(models.Model):
 
     order = models.ForeignKey(Order, on_delete=models.CASCADE, related_name="shop_orders")
     shop = models.ForeignKey(Shop, on_delete=models.CASCADE, related_name="shop_orders")
-    status = models.CharField(choices=Status.choices, default=Status.PROCESSING, max_length=20, verbose_name="Статус заказа")
+    status = models.CharField(choices=Status.choices, default=Status.BASKET, max_length=20, verbose_name="Статус заказа")
 
     class Meta:
         verbose_name = "Подзаказ магазина"

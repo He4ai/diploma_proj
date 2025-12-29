@@ -82,14 +82,15 @@ class ChangeShopOrderStatusSerializer(serializers.Serializer):
         if current_status in {ShopOrder.Status.DELIVERED, ShopOrder.Status.CANCELED}:
             raise serializers.ValidationError("Финальный статус менять нельзя.")
 
+        if new_status == ShopOrder.Status.CANCELED:
+            # отменять можно из любого статуса, кроме basket и финальных
+            return new_status
+
         flow = self.STATUS_FLOW
 
         if current_status not in flow or new_status not in flow:
             raise serializers.ValidationError("Некорректный статус для перехода.")
 
-        if new_status == ShopOrder.Status.CANCELED:
-            # отменять можно из любого статуса, кроме basket и финальных
-            return new_status
 
         cur_i = flow.index(current_status)
         new_i = flow.index(new_status)

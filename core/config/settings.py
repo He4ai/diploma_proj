@@ -175,12 +175,6 @@ CACHES = {
     }
 }
 
-if os.getenv("DJANGO_TESTING") == "1":
-    EMAIL_BACKEND = "django.core.mail.backends.locmem.EmailBackend"
-
-    CELERY_TASK_ALWAYS_EAGER = True
-    CELERY_TASK_EAGER_PROPAGATES = True
-
 SITE_ID = 1
 
 AUTHENTICATION_BACKENDS = [
@@ -218,5 +212,8 @@ if SENTRY_DSN and not TESTING:
         traces_sample_rate=float(os.getenv("SENTRY_TRACES_SAMPLE_RATE", "0.0")),
         send_default_pii=True,
     )
+
+ADMINS = [("Admin", "admin@example.com")]
+
 
 
